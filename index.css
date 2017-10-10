@@ -1,0 +1,15 @@
+body {
+  background-color: #ddd;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+#main {
+  margin-top: 200px;
+}
+
+#connectPanel {
+  padding: 50px;
+}

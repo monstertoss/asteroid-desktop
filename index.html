@@ -4,11 +4,34 @@
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-        <link href="/assets/bundle.css" rel="stylesheet">
+        <link href="index.css" rel="stylesheet">
 
 	<title>Asteroid Desktop</title>
   </head>
   <body>
-    <script src="/assets/bundle.js"></script>
+
+    <div class="mui-container" id="main">
+      <div class="mui-row">
+        <div class="mui-col-md-6 mui-col-md-offset-3">
+          <div class="mui-panel" id="connectPanel">
+            <h2 class="mui--text-center">Connect to your phone</h2>
+
+            <form class="mui-form" onsubmit="event.preventDefault(); onConnect(event);">
+              <div class="mui-textfield">
+                <input type="text" placeholder="IP address of your phone" id="connectIP">
+              </div>
+              <button type="submit" class="mui-btn mui-btn--raised mui-btn--primary btn-block">Connect</button>
+            </form>
+          </div>
+
+          <div class="mui-panel" id="discoveredDevices">
+            <h3 class="mui--text-center">No devices detected yet.</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="./lib.js"></script>
+    <script src="./index.js"></script>
   </body>
 </html>
