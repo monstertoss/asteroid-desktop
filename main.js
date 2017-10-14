@@ -55,41 +55,51 @@ app.on('activate', () => {
   }
 });
 
+// This is going to store our keypair
 var keypair = {};
+
+// Try to read the key file
 fs.readFile(keyfile, 'utf8', (err, keystring) => {
+
+  // If an error occurred that isn't ENOENT (No such file or directory). Print it and exit
   if(err && err.code != 'ENOENT') {
     console.error(err);
+    process.exit(-1);
     return;
   }
 
+  // If the key file doesn't exist, generate a new key
   if(err) {
     console.log('Generating key. Please wait...');
     keypair.key = new rsa(rsaOptions);
     keypair.pem = keypair.key.exportKey('private');
+
+    // Store the keypair to the key file
     fs.writeFile(keyfile, keypair.pem, (err) => {
       if(err)
         console.error(err);
     });
   } else {
+    // If the key file exists, load that key
     keypair.pem = keystring;
     keypair.key = new rsa(keystring, 'private', rsaOptions);
   }
 
+  // Convert the key to several formats, including the public der which is used for generating the fingerprint or the public pem which is sent to the server
   keypair.der = keypair.key.exportKey('pkcs8-private-der');
   keypair.publicpem = keypair.key.exportKey('public');
   keypair.publicder = keypair.key.exportKey('pkcs8-public-der');
   keypair.fingerprint = generateFingerprint(keypair.publicder);
+  // Wrapper for the signature creation
   keypair.sign = function sign(data) {
     return keypair.key.sign(data, 'base64', 'utf8');
   }
+  // Once everything is finished, make the keypair available to the render thread
   global.keypair = keypair;
 });
 
+// Helper function
 function generateFingerprint(buf) {
   var fingerprint = crypto.createHash('sha1').update(buf).digest('hex').replace(/(.{2})/g, '$1:');
   return fingerprint.substr(0, fingerprint.length-1).toUpperCase();
-}
-
-function generateServerID(buf) {
-  return crypto.createHash('sha256').update(buf).digest('base64');
 }

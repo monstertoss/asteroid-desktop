@@ -9,8 +9,9 @@
 	<title>Asteroid Desktop</title>
   </head>
   <body>
-
     <div class="mui-container" id="main">
+
+      <!-- Connect screen -->
       <div class="mui-row" id="connect" style="opacity:1;display:block">
         <div class="mui-col-md-6 mui-col-md-offset-3">
           <div class="mui-panel" id="connectPanel">
@@ -33,12 +34,14 @@
         </div>
       </div>
 
+      <!-- Connecting -->
       <div class="mui-row" id="connecting" style="opacity:0;display:none">
         <div class="mui-col-md-6 mui-col-md-offset-3">
           <div class="progress"><div class="content"></div></div>
         </div>
       </div>
 
+      <!-- Once its connected, show the data -->
       <div class="mui-row" id="data" style="opacity:0;display:none">
         <div class="mui-col-md-4">
           <div class="mui-panel" id="dataSidebar">
@@ -51,9 +54,12 @@
           </div>
         </div>
       </div>
+
     </div>
 
+    <!-- CSS stylesheet library -->
     <script src="./lib.js"></script>
+
     <script src="./index.js"></script>
   </body>
 </html>
