@@ -132,6 +132,83 @@ function updateDiscoveredDevices() {
   }
 }
 
+var targets = {}
+const ANIMATE = {
+  SHOWN: 0,
+  SHOWING: 1,
+  HIDING: 2,
+  HIDDEN: 3
+};
+
+['connect', 'connecting', 'data'].forEach((target) => {
+  targets[target] = {
+    id: target,
+    element: document.getElementById(target),
+    state: (document.getElementById(target).style.display == 'block' ? ANIMATE.SHOWN : ANIMATE.HIDDEN),
+  }
+});
+
+function animateTo(id, callback) {
+  function _cb() {
+    if(callback)
+      callback();
+  }
+
+  if(!id)
+    return _cb();
+
+  var index = Object.keys(targets).indexOf(id);
+
+  if(index < 0)
+    return _cb();
+
+  var toBeHidden = Object.keys(targets).filter((target, i) => {
+    if(index == i)
+      return false;
+
+    if(targets[target].state >= ANIMATE.HIDING)
+      return false;
+
+    return true;
+  });
+
+  toBeHidden.forEach((fromID) => {
+    var from = targets[fromID];
+    from.state = ANIMATE.HIDING;
+    from.element.style.opacity = 0;
+  });
+
+  setTimeout(() => {
+    toBeHidden.forEach((fromID) => {
+      var from = targets[fromID];
+      from.state = ANIMATE.HIDDEN;
+      from.element.style.display = 'none';
+    });
+
+    var to = targets[id];
+    if(to.state >= ANIMATE.HIDING) {
+      to.state = ANIMATE.SHOWING;
+      to.element.style.display = 'block';
+      to.element.style.opacity = 1;
+
+      setTimeout(() => to.state = ANIMATE.SHOWN, 100);
+    }
+
+    _cb();
+  }, 100);
+}
+
+function showConnect(err) {
+  animateTo('connect', () => {
+    var error = document.getElementById('connectError');
+    if(err) {
+      error.style.display = 'block';
+      error.textContent = 'Error: ' + err.code + ' (Address: ' + err.address + ')';
+    } else
+      error.style.display = 'none';
+  });
+}
+
 function onConnect(event) {
   var ip = document.getElementById('connectIP').value;
 
@@ -146,7 +223,15 @@ function connect(address) {
   if(socket)
     return console.log('Could not connect: Already connected');
 
+  animateTo('connecting');
+
   socket = tls.connect({host: address, port: 8877, rejectUnauthorized: false});
+
+  socket.on('error', (err) => {
+    console.error(err);
+    socket.error = err;
+    showConnect(err);
+  });
 
   socket.on('secureConnect', () => {
     console.log('CONNECTED');
@@ -155,6 +240,7 @@ function connect(address) {
 
   socket.on('close', () => {
     console.log('CLOSED');
+    showConnect(socket.error);
     socket = null;
   });
 
@@ -183,6 +269,7 @@ function connect(address) {
                 )
               ]);
     socket.write(buf);
+    console.log('Sent message with opcode:', opCode);
   };
 
   function handlePacket(data) {
@@ -228,6 +315,7 @@ function connect(address) {
 
       case OP.S2C_HANDSHAKE_OK:
         console.log('Handshake OK!');
+        animateTo('data');
         break;
     }
   }

@@ -65,7 +65,7 @@ fs.readFile(keyfile, 'utf8', (err, keystring) => {
   if(err) {
     console.log('Generating key. Please wait...');
     keypair.key = new rsa(rsaOptions);
-    keypair.pem = keypair.key.exportKey('pem');
+    keypair.pem = keypair.key.exportKey('private');
     fs.writeFile(keyfile, keypair.pem, (err) => {
       if(err)
         console.error(err);
