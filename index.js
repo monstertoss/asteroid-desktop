@@ -2,6 +2,7 @@ const {remote} = require('electron');
 const tls = remote.require('tls');
 const dgram = remote.require('dgram');
 const crypto = remote.require('crypto');
+const zstd = remote.require('node-zstd');
 
 // UDP Package headers
 const WHO = Buffer.from([0x49,0x4c,0x7b,0xae,0x30,0x30,0x69,0x9e]);
@@ -18,6 +19,9 @@ const OP = {
   S2C_HANDSHAKE_RESPONSE: 6,
   S2C_HANDSHAKE_OK: 7,
   C2S_HANDSHAKE_OK: 8,
+
+  C2S_REQUEST_CONTACTS: 9,
+  S2C_RESPONSE_CONTACTS: 10,
 }
 
 // Fetch keypair. Appearantly, the render thread is only started after the main thread completed its work.
@@ -326,38 +330,44 @@ function connect(address) {
     // Append what we got to that buffer
     socketMessage = Buffer.concat([socketMessage, data]);
 
-    // See if there is already a packet delimiter ('\n')
-    var packets = socketMessage.toString().split('\n');
-    // If no, wait for the next data
-    if(packets.length == 1)
-      return;
+    var i;
+    // For each package delimiter (0xFF)
+    while((i = socketMessage.indexOf(0xFF)) > -1) {
+      // Handle everything until the delimiter
+      handlePacket(socketMessage.slice(0,i));
 
-    // If there are whole packets
-    for (var i = 0; i < packets.length-1; i++) {
-      // Convert the packet to binary
-      var data = Buffer.from(packets[i] + '\n');
-      // Remove it from the buffer
-      socketMessage = socketMessage.slice(data.length);
-
-      // Parse and handle it
-      handlePacket(data);
+      // Store the rest
+      socketMessage = socketMessage.slice(i+1);
     }
   });
 
   // Helper function for sending messages
-  // Format: opcode + base64 encoded json body + '\n'
+  // Format: opcode + length of decompressed body + base64 encoded compressed json body + 0xFF
   socket.send = function(opCode, payload) {
-    var buf = Buffer.concat([
-                Buffer.from([opCode]),
-                Buffer.from(
-                  Buffer.from(
-                    JSON.stringify(payload)
-                  ).toString('base64') +
-                  '\n'
-                )
-              ]);
-    socket.write(buf);
-    console.log('Sent message with opcode:', opCode);
+    var payloadBuf = Buffer.from(JSON.stringify(payload));
+    zstd.compress(payloadBuf, {level: 1}, (err, compressedPayload) => {
+      if(err) {
+        console.error(err)
+        socket.destroy();
+        return;
+      }
+
+      var decompressedSize = Buffer.alloc(4);
+      decompressedSize.writeInt32BE(payloadBuf.length);
+
+      console.log(decompressedSize);
+
+      var buf = Buffer.concat([
+                  Buffer.from([opCode]),
+                  decompressedSize,
+                  Buffer.from(compressedPayload.toString('base64')),
+                  Buffer.from([0xFF])
+                ]);
+
+      socket.write(buf);
+      var json = JSON.stringify(payload);
+      console.log('Sent message with opcode', opCode, 'and content:', (json.length > 100 ? json.substr(0, 100) + '...' : json), 'decompressed payload size:', payloadBuf.length, 'total size:', buf.length);
+    });
   };
 
   // Parse a packet
@@ -365,16 +375,26 @@ function connect(address) {
     try {
       // Get opcode
       var opCode = data.readUInt8(0);
+
       // Parse base64
-      var message = data.toString('utf8', 1, data.length-1);
-      var json = Buffer.from(message, 'base64').toString();
+      var compressedPayload = data.toString('utf8', 5, data.length);
 
-      // Parse json
-      var payload = JSON.parse(json);
-      console.log('Got message with opcode: ' + opCode);
+      // Decompress payload
+      zstd.decompress(Buffer.from(compressedPayload, 'base64'), (err, decompressedPayload) => {
+        if(err) {
+          console.error(err)
+          socket.destroy();
+          return;
+        }
 
-      // Handle the message
-      handleMessage(opCode, payload);
+        // Parse json
+        var json = decompressedPayload.toString();
+        console.log('Got message with opcode', opCode, 'and content:', (json.length > 100 ? json.substr(0, 100) + '...' : json), 'advertised decompressed payload size:', data.readInt32BE(1), 'decompressed payload size:', decompressedPayload.length, 'total size:', data.length);
+
+        // Handle the message
+        var payload = JSON.parse(json);
+        handleMessage(opCode, payload);
+      });
     } catch(e) {
       console.error(e);
       socket.destroy();
@@ -420,6 +440,12 @@ function connect(address) {
         // TODO: Fetch actual data
         console.log('Handshake OK!');
         animateTo('data');
+        setTimeout(() => socket.send(OP.C2S_REQUEST_CONTACTS, {}), 1000);
+        break;
+
+      case OP.S2C_RESPONSE_CONTACTS:
+        var contacts = payload.contacts;
+        console.log(contacts);
         break;
     }
   }
@@ -435,3 +461,4 @@ function generateFingerprint(buf) {
 function generateServerID(buf) {
   return crypto.createHash('sha256').update(buf).digest('base64');
 }
+

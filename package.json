@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "update": "node_modules/.bin/ncu -u",
     "start": "node_modules/.bin/electron ."
   },
   "repository": {
@@ -18,7 +19,11 @@
   },
   "homepage": "https://github.com/monstertoss/asteroid-desktop#readme",
   "dependencies": {
-    "electron": "1.7.8",
-    "node-rsa": "^0.4.2"
+    "electron": "1.7.12",
+    "node-rsa": "0.4.2",
+    "node-zstd": "2.0.1"
+  },
+  "devDependencies": {
+    "npm-check-updates": "^2.14.0"
   }
 }
