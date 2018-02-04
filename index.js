@@ -1,43 +1,19 @@
+// --- CONTEXT: BROWSER --- //
+
 const {remote} = require('electron');
 const tls = remote.require('tls');
 const dgram = remote.require('dgram');
-const crypto = remote.require('crypto');
 const zstd = remote.require('node-zstd');
 
-// UDP Package headers
-const WHO = Buffer.from([0x49,0x4c,0x7b,0xae,0x30,0x30,0x69,0x9e]);
-const HERE = Buffer.from([0x22,0xd6,0xb1,0x4b,0x35,0x28,0x10,0x51]);
+const UI = require('./ui.js');
 
-// The same message opcodes as on the client
-const OP = {
-  C2S_HANDSHAKE_PUBLIC_KEY: 0,
-  S2C_HANDSHAKE_PUBLIC_KEY_UNKNOWN: 1,
-  S2C_HANDSHAKE_PUBLIC_KEY_KNOWN: 2,
-  S2C_HANDSHAKE_CHALLENGE: 3,
-  C2S_HANDSHAKE_CHALLENGE: 4,
-  C2S_HANDSHAKE_RESPONSE: 5,
-  S2C_HANDSHAKE_RESPONSE: 6,
-  S2C_HANDSHAKE_OK: 7,
-  C2S_HANDSHAKE_OK: 8,
+const Handshake = require('./handshake.js');
+const Contacts = require('./contacts.js');
 
-  C2S_REQUEST_CONTACTS: 9,
-  S2C_RESPONSE_CONTACTS: 10,
-}
+const {OP, WHO, HERE} = require('./constants.js');
 
-// Fetch keypair. Appearantly, the render thread is only started after the main thread completed its work.
-// Anyway, we still provide a function to wait and retrieve it later if the keypair is still null
-var keypair = remote.getGlobal('keypair');
-if(keypair == null) {
-  setTimeout(function onTimeout() {
-    keypair = remote.getGlobal('keypair');
-    if(keypair == null)
-      setTimeout(onTimeout, 100);
-    else
-      console.log('Loaded key:', keypair.fingerprint);
-  }, 100);
-  console.log('Loading key...');
-} else
-  console.log('Loaded key:', keypair.fingerprint);
+const keypair = remote.getGlobal('keypair');
+console.log('Loaded key:', keypair.fingerprint);
 
 /**** Automagic device discovery ****/
 
@@ -53,9 +29,6 @@ var discoveredDevices = {};
 
 // Broadcast WHO requests and remove devices which didn't respond multiple times
 function discoverDevices() {
-  if(keypair == null)
-    return;
-
   // Build and broadcast WHO request: WHO header plus our fingerprint
   const packet = Buffer.concat([WHO,Buffer.from(keypair.fingerprint)]);
   udpSocket.setBroadcast(true);
@@ -70,7 +43,7 @@ function discoverDevices() {
     }
   });
   if(triggerUpdate)
-    updateDiscoveredDevices();
+    UI.updateDiscoveredDevices(discoveredDevices);
 }
 
 // If we got a response from a device
@@ -90,179 +63,10 @@ udpSocket.on('message', function(data, info) {
   var shouldUpdate = !discoveredDevices[info.address];
   discoveredDevices[info.address] = {purge: 3, name, known, address: info.address};
   if(shouldUpdate)
-    updateDiscoveredDevices();
+    UI.updateDiscoveredDevices(discoveredDevices);
 });
 
-// Update the UI to reflect the currently discovered devices
-function updateDiscoveredDevices() {
-  var panel = document.getElementById('discoveredDevices');
-  // Remove all devices from the UI
-  while(panel.lastChild) {
-    panel.removeChild(panel.lastChild);
-  }
-
-  // Create div for known devices
-  var known = document.createElement('div');
-  var areThereKnown = false;
-  // Create div for unknown devices
-  var unknown = document.createElement('div');
-  var areThereUnknown = false;
-
-  // If we have any device
-  if(Object.keys(discoveredDevices).length > 0) {
-    // Iterate over all discovered devices
-    Object.keys(discoveredDevices).forEach((address, index) => {
-      const device = discoveredDevices[address];
-
-      // Build a connect button
-      var button = document.createElement('button');
-      button.className = 'mui-btn mui-btn--flat mui-btn--primary btn-block mui--text-left';
-      button.textContent = device.name;
-
-      button.onclick = (e) => {
-        // Connect if the button was clicked
-        connect(address);
-      }
-
-      // Also show the ip on the right side
-      var ip = document.createElement('small');
-      ip.className = 'mui--pull-right';
-      ip.textContent = address;
-      button.appendChild(ip);
-
-      // Append to the right category
-      (device.known ? known : unknown).appendChild(button);
-      (device.known ? areThereKnown = true : areThereUnknown = true)
-    });
-
-    // If there are known devices, show them at first
-    if(areThereKnown) {
-      var knownHeadline = document.createElement('h5');
-      var knownHeadlineStrong = document.createElement('strong');
-      knownHeadlineStrong.textContent = 'KNOWN DEVICES';
-      knownHeadline.appendChild(knownHeadlineStrong);
-      panel.appendChild(knownHeadline);
-      panel.appendChild(known);
-    }
-
-    // If we have both know and unknown devices, show a <hr>
-    if(areThereKnown && areThereUnknown)
-      panel.appendChild(document.createElement('hr'));
-
-    // Also show unknown devices, if we have any
-    if(areThereUnknown) {
-      var unknownHeadline = document.createElement('h5');
-      var unknownHeadlineStrong = document.createElement('strong');
-      unknownHeadlineStrong.textContent = 'UNKNOWN DEVICES';
-      unknownHeadline.appendChild(unknownHeadlineStrong);
-      panel.appendChild(unknownHeadline);
-      panel.appendChild(unknown);
-    }
-  } else {
-    // If we don't have any device, show the text instead
-    var h3 = document.createElement('h3');
-    h3.className = 'mui--text-center';
-    h3.textContent = 'No devices detected yet.';
-    panel.appendChild(h3);
-  }
-}
-
-/**** UI Animation ****/
-
-var targets = {}
-// The animation state of a UI part
-const ANIMATE = {
-  SHOWN: 0,
-  SHOWING: 1,
-  HIDING: 2,
-  HIDDEN: 3
-};
-
-['connect', 'connecting', 'data'].forEach((target) => {
-  targets[target] = {
-    id: target,
-    element: document.getElementById(target),
-    state: (document.getElementById(target).style.display == 'block' ? ANIMATE.SHOWN : ANIMATE.HIDDEN),
-  }
-});
-
-// Hide everything except for the wanted part
-function animateTo(id, callback) {
-  // Make callback optional
-  function _cb() {
-    if(callback)
-      callback();
-  }
-
-  if(!id)
-    return _cb();
-
-  var index = Object.keys(targets).indexOf(id);
-
-  // We can only animate to parts that are there
-  if(index < 0)
-    return _cb();
-
-  // Get all the parts that should be hidden
-  var toBeHidden = Object.keys(targets).filter((target, i) => {
-    // Not the one that should be shown
-    if(index == i)
-      return false;
-
-    // Also not the ones that are already hidden or just hiding
-    if(targets[target].state >= ANIMATE.HIDING)
-      return false;
-
-    // But everything else
-    return true;
-  });
-
-  // Set state to hiding and trigger the opacity animation (transition)
-  toBeHidden.forEach((fromID) => {
-    var from = targets[fromID];
-    from.state = ANIMATE.HIDING;
-    from.element.style.opacity = 0;
-  });
-
-  // After the transition
-  setTimeout(() => {
-    // Remove the invisible parts
-    toBeHidden.forEach((fromID) => {
-      var from = targets[fromID];
-      from.state = ANIMATE.HIDDEN;
-      from.element.style.display = 'none';
-    });
-
-    // Show the to-be-shown part if it's not already there
-    var to = targets[id];
-    if(to.state >= ANIMATE.HIDING) {
-      to.state = ANIMATE.SHOWING;
-      to.element.style.display = 'block';
-      to.element.style.opacity = 1;
-
-      setTimeout(() => to.state = ANIMATE.SHOWN, 100);
-    }
-
-    _cb();
-  }, 100);
-}
-
-// Wrapper for animateTo that also handles potential error messages
-function showConnect(err) {
-  if(err)
-    console.error('Connection error:', err);
-
-  animateTo('connect', () => {
-    var error = document.getElementById('connectError');
-    if(err) {
-      error.style.display = 'block';
-      error.textContent = 'Error: ' + err.code + ' (Address: ' + err.address + ')';
-    } else
-      error.style.display = 'none';
-  });
-}
-
-// Called when you enter an ip manually
+// Called when you enter an ip manually in the connect field
 function onConnect(event) {
   // Check which ip was entered
   var ip = document.getElementById('connectIP').value;
@@ -280,10 +84,11 @@ function onConnect(event) {
 var socket;
 function connect(address) {
   if(socket)
-    return showConnect({code: 'Already connected', address});
+    return UI.showConnect({code: 'Already connected', address});
 
   // Update UI
-  animateTo('connecting');
+  UI.setConnectingText('Connecting ...');
+  UI.animateTo('connecting');
 
   // Create TLS connection. Do not verify the server certificate as it's self signed
   socket = tls.connect({host: address, port: 8877, rejectUnauthorized: false});
@@ -292,7 +97,7 @@ function connect(address) {
   if(discoveryInterval != null) {
     clearInterval(discoveryInterval);
     discoveredDevices = {};
-    updateDiscoveredDevices();
+    UI.updateDiscoveredDevices(discoveredDevices);
     discoveryInterval = null;
   }
 
@@ -304,6 +109,7 @@ function connect(address) {
   // Once we are connected, send our public key
   socket.on('secureConnect', () => {
     console.log('CONNECTED');
+    UI.setConnectingText('Connected! Making sure we are secure ...');
     socket.send(OP.C2S_HANDSHAKE_PUBLIC_KEY, {key: Buffer.from(keypair.publicpem).toString('base64')});
   });
 
@@ -311,7 +117,7 @@ function connect(address) {
   socket.on('close', () => {
     console.log('CLOSED');
     // Show connecting screen with possibly error messages
-    showConnect(socket.error);
+    UI.showConnect(socket.error);
 
     // Clean up socket
     socket = null;
@@ -405,31 +211,15 @@ function connect(address) {
   function handleMessage(opCode, payload) {
     switch(opCode) {
       case OP.S2C_HANDSHAKE_PUBLIC_KEY_UNKNOWN:
-        // TODO: Show popup to confirm our fingerprint
-        console.log('Confirm this fingerprint:', keypair.fingerprint);
+	Handshake.handleUnknownPublicKey(socket, payload);
         break;
 
       case OP.S2C_HANDSHAKE_PUBLIC_KEY_KNOWN:
-        // TODO: Hide popup to confirm our fingerprint
-        console.log('Confirmed fingerprint!');
+	Handshake.handleKnownPublicKey(socket, payload);
         break;
 
       case OP.S2C_HANDSHAKE_CHALLENGE:
-        // Respond to a handshake challenge. Format: <server id>:<random data>
-        var challenge = payload.challenge.split(':');
-
-        // Generate the server's id
-        var serverID = generateServerID(socket.getPeerCertificate().raw);
-
-        // If the server's id isn't the same as in the challenge, disconnect
-        if(challenge.length != 2 || challenge[0] != serverID)
-          return socket.destroy();
-
-        // Otherwise, sign the challenge
-        var signature = keypair.sign(payload.challenge);
-
-        // And send the response
-        socket.send(OP.C2S_HANDSHAKE_RESPONSE, {challenge: payload.challenge, signature});
+        Handshake.handleChallenge(socket, payload);
         break;
 
       case OP.S2C_HANDSHAKE_RESPONSE:
@@ -437,28 +227,14 @@ function connect(address) {
         break;
 
       case OP.S2C_HANDSHAKE_OK:
-        // TODO: Fetch actual data
         console.log('Handshake OK!');
-        animateTo('data');
-        setTimeout(() => socket.send(OP.C2S_REQUEST_CONTACTS, {}), 1000);
+        UI.setConnectingText('Everything sound and safe! Fetching contacts ...');
+        socket.send(OP.C2S_REQUEST_CONTACTS, {});
         break;
 
       case OP.S2C_RESPONSE_CONTACTS:
-        var contacts = payload.contacts;
-        console.log(contacts);
+        Contacts.handleContacts(socket, payload);
         break;
     }
   }
 }
-
-/**** Helpers ****/
-
-function generateFingerprint(buf) {
-  var fingerprint = crypto.createHash('sha1').update(buf).digest('hex').replace(/(.{2})/g, '$1:');
-  return fingerprint.substr(0, fingerprint.length-1).toUpperCase();
-}
-
-function generateServerID(buf) {
-  return crypto.createHash('sha256').update(buf).digest('base64');
-}
-

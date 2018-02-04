@@ -1,0 +1,23 @@
+// --- CONTEXT: AGNOSTIC --- //
+
+// UDP Package headers
+const WHO = Buffer.from([0x49,0x4c,0x7b,0xae,0x30,0x30,0x69,0x9e]);
+const HERE = Buffer.from([0x22,0xd6,0xb1,0x4b,0x35,0x28,0x10,0x51]);
+
+// The same message opcodes as on the server
+const OP = {
+  C2S_HANDSHAKE_PUBLIC_KEY: 0,
+  S2C_HANDSHAKE_PUBLIC_KEY_UNKNOWN: 1,
+  S2C_HANDSHAKE_PUBLIC_KEY_KNOWN: 2,
+  S2C_HANDSHAKE_CHALLENGE: 3,
+  C2S_HANDSHAKE_CHALLENGE: 4,
+  C2S_HANDSHAKE_RESPONSE: 5,
+  S2C_HANDSHAKE_RESPONSE: 6,
+  S2C_HANDSHAKE_OK: 7,
+  C2S_HANDSHAKE_OK: 8,
+
+  C2S_REQUEST_CONTACTS: 9,
+  S2C_RESPONSE_CONTACTS: 10,
+}
+
+module.exports = {OP, WHO, HERE};

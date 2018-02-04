@@ -1,8 +1,9 @@
+// --- CONTEXT: NODE --- //
+
 const {app, BrowserWindow} = require('electron');
-const path = require('path');
-const url = require('url');
-const crypto = require('crypto');
+
 const fs = require('fs');
+const {generateFingerprint} = require('./crypto.js');
 
 const rsa = require('node-rsa');
 const rsaOptions = {environment: 'browser'};
@@ -97,9 +98,3 @@ fs.readFile(keyfile, 'utf8', (err, keystring) => {
   // Once everything is finished, make the keypair available to the render thread
   global.keypair = keypair;
 });
-
-// Helper function
-function generateFingerprint(buf) {
-  var fingerprint = crypto.createHash('sha1').update(buf).digest('hex').replace(/(.{2})/g, '$1:');
-  return fingerprint.substr(0, fingerprint.length-1).toUpperCase();
-}

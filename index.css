@@ -27,6 +27,9 @@ body {
   transition: opacity 100ms ease;
 }
 
+.mui--text-primary-dark {
+  color: #1976D2;
+}
 
 /* Progress Bar */
 .progress {
