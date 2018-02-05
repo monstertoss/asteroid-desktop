@@ -23,6 +23,46 @@ body {
   margin-top: 25px;
 }
 
+#contentSearchField {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+#disconnectButton {
+  margin: 0px;
+  height: 28px;
+  line-height: 28px;
+  font-size: 14px;
+}
+
+.btn-contacts {
+  margin: 3px 0;
+  text-transform: none;
+}
+
+.mui-btn.mui-btn--flat.selected {
+  background-color: #d9d9d9;
+}
+
+@media (min-width: 768px) {
+  #dataContent {
+    position: fixed;
+    width: 433.328px;
+  }
+}
+
+@media (min-width: 992px) {
+  #dataContent {
+    width: 580px;
+  }
+}
+
+@media (min-width: 1200px) {
+  #dataContent {
+    width: 720px;
+  }
+}
+
 * {
   transition: opacity 100ms ease;
 }

@@ -12,11 +12,13 @@ const keypair = remote.getGlobal('keypair');
 function handleUnknownPublicKey(socket, payload) {
   // TODO: Show popup to confirm our fingerprint
   console.log('Confirm this fingerprint:', keypair.fingerprint);
+  UI.setConnectingText('Please check and confirm this fingerprint on your phone: ' + keypair.fingerprint);
 }
 
 function handleKnownPublicKey(socket, payload) {
   // TODO: Hide popup to confirm our fingerprint
   console.log('Confirmed fingerprint!');
+  UI.setConnectingText('Identified phone! Making sure we are secure ...');
 }
 
 function handleChallenge(socket, payload) {
@@ -28,7 +30,7 @@ function handleChallenge(socket, payload) {
 
   // If the server's id isn't the same as in the challenge, disconnect
   if(challenge.length !== 2 || challenge[0] !== serverID)
-    return socket.destroy();
+    return socket.close();
 
   // Otherwise, sign the challenge
   var signature = keypair.sign(payload.challenge);

@@ -15,6 +15,28 @@ const {OP, WHO, HERE} = require('./constants.js');
 const keypair = remote.getGlobal('keypair');
 console.log('Loaded key:', keypair.fingerprint);
 
+// Called when you enter an ip manually in the connect field
+function onConnect(event) {
+  // Check which ip was entered
+  var ip = document.getElementById('connectIP').value;
+
+  if(!ip)
+    return;
+
+  // Connect to that ip
+  connect(ip);
+}
+
+// Called whenever you put something in the search box
+function onSearchInput(event) {
+  if(!socket)
+    return;
+
+  var searchValue = document.getElementById('contentSearch').value;
+
+  UI.updateContacts(socket.data.contacts, searchValue);
+}
+
 /**** Automagic device discovery ****/
 
 // Create udp socket
@@ -66,32 +88,27 @@ udpSocket.on('message', function(data, info) {
     UI.updateDiscoveredDevices(discoveredDevices);
 });
 
-// Called when you enter an ip manually in the connect field
-function onConnect(event) {
-  // Check which ip was entered
-  var ip = document.getElementById('connectIP').value;
-
-  if(!ip)
-    return;
-
-  // Connect to that ip
-  connect(ip);
-}
-
 /**** Actual connection ****/
 
 // My socket. Either null if disconnected or a tls socket if connected
 var socket;
+
 function connect(address) {
   if(socket)
     return UI.showConnect({code: 'Already connected', address});
 
   // Update UI
-  UI.setConnectingText('Connecting ...');
+  UI.setConnectingText('Connecting to ' + address + ' ...');
   UI.animateTo('connecting');
 
   // Create TLS connection. Do not verify the server certificate as it's self signed
   socket = tls.connect({host: address, port: 8877, rejectUnauthorized: false});
+
+  socket.data = {}; // Arbitrary connection-related data such as contacts
+
+  socket.close = function close() {
+    socket.send(OP.BYE, {});
+  }
 
   // Stop discovering new devices
   if(discoveryInterval != null) {
@@ -109,7 +126,7 @@ function connect(address) {
   // Once we are connected, send our public key
   socket.on('secureConnect', () => {
     console.log('CONNECTED');
-    UI.setConnectingText('Connected! Making sure we are secure ...');
+    UI.setConnectingText('Connected! Identifying phone ...');
     socket.send(OP.C2S_HANDSHAKE_PUBLIC_KEY, {key: Buffer.from(keypair.publicpem).toString('base64')});
   });
 
@@ -154,14 +171,12 @@ function connect(address) {
     zstd.compress(payloadBuf, {level: 1}, (err, compressedPayload) => {
       if(err) {
         console.error(err)
-        socket.destroy();
+        socket.close();
         return;
       }
 
       var decompressedSize = Buffer.alloc(4);
       decompressedSize.writeInt32BE(payloadBuf.length);
-
-      console.log(decompressedSize);
 
       var buf = Buffer.concat([
                   Buffer.from([opCode]),
@@ -189,7 +204,7 @@ function connect(address) {
       zstd.decompress(Buffer.from(compressedPayload, 'base64'), (err, decompressedPayload) => {
         if(err) {
           console.error(err)
-          socket.destroy();
+          socket.close();
           return;
         }
 
@@ -203,7 +218,7 @@ function connect(address) {
       });
     } catch(e) {
       console.error(e);
-      socket.destroy();
+      socket.close();
     }
   }
 

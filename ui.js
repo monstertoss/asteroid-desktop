@@ -1,12 +1,6 @@
 // --- CONTEXT: BROWSER --- //
 
-// The animation state of a UI part
-const ANIMATE = {
-  SHOWN: 0,
-  SHOWING: 1,
-  HIDING: 2,
-  HIDDEN: 3
-};
+const {ANIMATE, DATA, DATAKINDS} = require('./constants.js');
 
 var targets = {};
 
@@ -81,24 +75,87 @@ function animateTo(id, callback) {
 
 // Wrapper for animateTo that also handles potential error messages
 function showConnect(err) {
-  if(err)
+  var error = document.getElementById('connectError');
+  if(err) {
     console.error('Connection error:', err);
+    error.style.display = 'block';
+    error.textContent = 'Error: ' + err.code + ' (Address: ' + err.address + ')';
+  } else
+    error.style.display = 'none';
 
-  animateTo('connect', () => {
-    var error = document.getElementById('connectError');
-    if(err) {
-      error.style.display = 'block';
-      error.textContent = 'Error: ' + err.code + ' (Address: ' + err.address + ')';
-    } else
-      error.style.display = 'none';
-  });
+  animateTo('connect');
 }
 
 function setConnectingText(text) {
   if(!text)
     text = '';
 
-  document.getElementById('connectingMessage').innerHTML = text;
+  document.getElementById('connectingMessage').textContent = text;
+}
+
+const _CONTACTS_BUTTON_CLASS = 'mui-btn mui-btn--flat btn-block btn-contacts mui--text-left'; 
+
+var clickedButton = null;
+
+function _createContactButton(contact) {
+  var button = document.createElement('button');
+  button.className = _CONTACTS_BUTTON_CLASS
+  button.textContent = contact.display_name;
+  button.id = contact._id;
+
+  button.onclick = (e) => {
+    if(clickedButton)
+      clickedButton.className = _CONTACTS_BUTTON_CLASS;
+
+    button.className += ' selected';
+
+    clickedButton = button;
+      
+    updateDataContent(contact);
+  }
+  return button;
+}
+
+function updateDataContent(contact) {
+  console.log(contact);
+}
+
+function updateContacts(contacts, search) {
+  var contactList = document.getElementById('contactList');
+  while(contactList.lastChild) {
+    contactList.removeChild(contactList.lastChild);
+  }
+
+  var list = Object.keys(contacts);
+
+  if(search) {
+    search = search.toLowerCase();
+    list = list.filter((id) => (contacts[id].sort_key.toLowerCase().indexOf(search) > -1) // If search is found in the sort_key (name)
+      || Object.keys(contacts[id].rawContacts).some((rawContactID) => Object.keys(contacts[id].rawContacts[rawContactID].data).some((dataID) => (contacts[id].rawContacts[rawContactID].data[dataID].kind == DATAKINDS.PHONE && contacts[id].rawContacts[rawContactID].data[dataID].fields.number.replace(' ', '').indexOf(search.replace(' ', '')) > -1) || (contacts[id].rawContacts[rawContactID].data[dataID].kind == DATAKINDS.EMAIL && contacts[id].rawContacts[rawContactID].data[dataID].fields.address.toLowerCase().indexOf(search) > -1)))) // If search is found in a phone number or email address
+  }
+
+  if(list.length > 0) {
+    list.sort((a,b) => contacts[a].sort_key.localeCompare(contacts[b].sort_key)).forEach((contactID) => {
+      var contact = contacts[contactID];
+      var button = _createContactButton(contact);
+
+      if(clickedButton && clickedButton.id == contactID) {
+        button.className += ' selected';
+        clickedButton = button;
+      }
+
+      contactList.appendChild(button);
+      contactList.appendChild(document.createElement('br'));
+    });
+  } else {
+    var button = document.createElement('button');
+    button.disabled = true;
+    button.className = 'mui-btn mui-btn--flat btn-block btn-contacts';
+    button.textContent = 'We couldn\'t find any contact for that!';
+
+    contactList.appendChild(button);
+  }
+  //console.log(contacts);
 }
 
 // Update the UI to reflect the currently discovered devices
@@ -125,8 +182,7 @@ function updateDiscoveredDevices(discoveredDevices) {
       // Build a connect button
       var button = document.createElement('button');
       button.className = 'mui-btn mui-btn--flat mui-btn--primary btn-block mui--text-left';
-      button.textContent = device.name;
-
+      button.textContent = device.name; 
       button.onclick = (e) => {
         // Connect if the button was clicked
         connect(address);
@@ -140,6 +196,7 @@ function updateDiscoveredDevices(discoveredDevices) {
 
       // Append to the right category
       (device.known ? known : unknown).appendChild(button);
+      (device.known ? known : unknown).appendChild(document.createElement('br'));
       (device.known ? areThereKnown = true : areThereUnknown = true)
     });
 
@@ -175,4 +232,5 @@ function updateDiscoveredDevices(discoveredDevices) {
   }
 }
 
-module.exports = {animateTo, showConnect, setConnectingText, updateDiscoveredDevices}
+module.exports = {animateTo, showConnect, setConnectingText, updateContacts, updateDataContent, updateDiscoveredDevices}
+

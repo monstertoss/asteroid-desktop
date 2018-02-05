@@ -46,16 +46,20 @@
       <div class="mui-row" id="data" style="opacity:0;display:none">
         <div class="mui-col-md-4">
           <div class="mui-panel" id="dataSidebar">
-            <h3 class="mui--text-center">Sidebar</h3>
+            <h3 class="mui--text-center">Contacts</h3>
+            <hr>
+            <div class="mui-textfield" id="contentSearchField">
+              <input type="text" placeholder="Search name, email, phone number..." id="contentSearch" oninput="onSearchInput()">
+            </div>
+            <div id="contactList"></div>
           </div>
         </div>
         <div class="mui-col-md-8">
           <div class="mui-panel" id="dataContent">
-            <h3 class="mui--text-center">Content</h3>
+            <h3 class="mui--text-center">Contact Details<button id="disconnectButton" class="mui-btn mui-btn--primary mui--pull-right" onclick="socket.close()">Disconnect</button></h3>
           </div>
         </div>
       </div>
-
     </div>
 
     <!-- CSS stylesheet library -->
