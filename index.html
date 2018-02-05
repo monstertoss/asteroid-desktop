@@ -57,6 +57,22 @@
         <div class="mui-col-md-8">
           <div class="mui-panel" id="dataContent">
             <h3 class="mui--text-center">Contact Details<button id="disconnectButton" class="mui-btn mui-btn--primary mui--pull-right" onclick="socket.close()">Disconnect</button></h3>
+            <hr>
+            <div class="mui-row">
+              <div class="mui-col-md-6">
+                <div class="mui-textfield">
+                  <input type="text" disabled="true" id="inputName" class="contactInput" oninput="UI.onContactInput()">
+                  <label>Name (First name, Middle name, Last name)</label>
+                </div>
+              </div>
+              <div class="mui-col-md-6">
+                <div class="mui-textfield">
+                  <input type="text" disabled="true" id="inputOrganization" class="contactInput" oninput="UI.onContactInput()">
+                  <label>Organization</label>
+                </div>
+              </div>
+            </div>
+            <button id="saveButton" style="display:none" class="mui-btn mui-btn--raised mui-btn--primary mui--pull-right" onclick="Contacts.saveContact()">Save</button>
           </div>
         </div>
       </div>

@@ -101,16 +101,20 @@ function _createContactButton(contact) {
   var button = document.createElement('button');
   button.className = _CONTACTS_BUTTON_CLASS
   button.textContent = contact.display_name;
-  button.id = contact._id;
+  button.contact = contact;
 
   button.onclick = (e) => {
     if(clickedButton)
       clickedButton.className = _CONTACTS_BUTTON_CLASS;
 
     button.className += ' selected';
-
     clickedButton = button;
-      
+ 
+    var inputs = document.getElementsByClassName('contactInput');
+    for(var i = 0; i < inputs.length; i++) {
+      inputs[i].disabled = false;
+    }
+
     updateDataContent(contact);
   }
   return button;
@@ -118,6 +122,53 @@ function _createContactButton(contact) {
 
 function updateDataContent(contact) {
   console.log(contact);
+
+  var data = getDataFromContact(contact);
+
+  document.getElementById('inputName').value = data.name;
+  document.getElementById('inputOrganization').value = data.organization;
+}
+
+function onContactInput() {
+  if(!clickedButton)
+    return;
+
+  var input = getWholeInput();
+  var data = getDataFromContact(clickedButton.contact);
+
+  var showSaveButton = ((input.name != data.name) || (input.organization != data.organization))
+
+  document.getElementById('saveButton').style.display = (showSaveButton ? 'block' : 'none');
+}
+
+function getDataFromContact(contact) {
+  var rawContactProvidingName = contact.rawContacts[contact.name_raw_contact_id];
+  var nameRow = rawContactProvidingName.data[Object.keys(rawContactProvidingName.data).filter((id) => rawContactProvidingName.data[id].kind == DATAKINDS.NAME)[0]];
+  var name = ((nameRow.fields.prefix ? nameRow.fields.prefix + ' ' : '') + (nameRow.fields.given_name ? nameRow.fields.given_name + ' ' : '') + (nameRow.fields.middle_name ? nameRow.fields.middle_name + ' ' : '') + (nameRow.fields.family_name ? nameRow.fields.family_name + ' ' : '') + (nameRow.fields.suffix ? nameRow.fields.suffix + ' ' : '')).trim();
+
+  var allDataSets = {};
+  Object.keys(contact.rawContacts).forEach((rawID) => {
+    Object.keys(contact.rawContacts[rawID].data).forEach((dataID) => {
+      allDataSets[dataID] = contact.rawContacts[rawID].data[dataID];
+    });
+  });
+
+  var organizationEntries = Object.keys(allDataSets).filter((id) => allDataSets[id].kind == DATAKINDS.ORGANIZATION)
+  var organization = (organizationEntries.length > 0 ? allDataSets[organizationEntries[0]].fields.company : '');
+
+  return {name: name, organization};
+}
+
+function getWholeInput() {
+  // Fetch and return input
+  var name = document.getElementById('inputName').value;
+  var organization = document.getElementById('inputOrganization').value;
+
+  return {name, organization};
+}
+
+function getCurrentContactData() {
+  return (clickedButton ? getDataFromContact(clickedButton.contact) : null);
 }
 
 function updateContacts(contacts, search) {
@@ -130,7 +181,7 @@ function updateContacts(contacts, search) {
 
   if(search) {
     search = search.toLowerCase();
-    list = list.filter((id) => (contacts[id].sort_key.toLowerCase().indexOf(search) > -1) // If search is found in the sort_key (name)
+    list = list.filter((id) => (contacts[id].display_name.toLowerCase().indexOf(search) > -1) // If search is found in the display_name
       || Object.keys(contacts[id].rawContacts).some((rawContactID) => Object.keys(contacts[id].rawContacts[rawContactID].data).some((dataID) => (contacts[id].rawContacts[rawContactID].data[dataID].kind == DATAKINDS.PHONE && contacts[id].rawContacts[rawContactID].data[dataID].fields.number.replace(' ', '').indexOf(search.replace(' ', '')) > -1) || (contacts[id].rawContacts[rawContactID].data[dataID].kind == DATAKINDS.EMAIL && contacts[id].rawContacts[rawContactID].data[dataID].fields.address.toLowerCase().indexOf(search) > -1)))) // If search is found in a phone number or email address
   }
 
@@ -139,7 +190,7 @@ function updateContacts(contacts, search) {
       var contact = contacts[contactID];
       var button = _createContactButton(contact);
 
-      if(clickedButton && clickedButton.id == contactID) {
+      if(clickedButton && clickedButton.contact._id == contactID) {
         button.className += ' selected';
         clickedButton = button;
       }
@@ -232,5 +283,5 @@ function updateDiscoveredDevices(discoveredDevices) {
   }
 }
 
-module.exports = {animateTo, showConnect, setConnectingText, updateContacts, updateDataContent, updateDiscoveredDevices}
+module.exports = {animateTo, getCurrentContactData, getWholeInput, onContactInput, showConnect, setConnectingText, updateContacts, updateDataContent, updateDiscoveredDevices}
 

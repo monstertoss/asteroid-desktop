@@ -59,4 +59,12 @@ function handleContacts(socket, payload) {
   UI.animateTo('data');
 }
 
-module.exports = {handleContacts};
+function saveContact() {
+  var data = UI.getCurrentContactData();
+  var wholeInput = UI.getWholeInput();
+
+  console.log(data, wholeInput);
+  // Build and submit batch transaction
+}
+
+module.exports = {handleContacts, saveContact};
