@@ -97,7 +97,7 @@ const _CONTACTS_BUTTON_CLASS = 'mui-btn mui-btn--flat btn-block btn-contacts mui
 
 var clickedButton = null;
 
-function _createContactButton(contact) {
+function _createContactButton(socket, contact) {
   var button = document.createElement('button');
   button.className = _CONTACTS_BUTTON_CLASS
   button.textContent = contact.display_name;
@@ -109,24 +109,63 @@ function _createContactButton(contact) {
 
     button.className += ' selected';
     clickedButton = button;
- 
-    var inputs = document.getElementsByClassName('contactInput');
-    for(var i = 0; i < inputs.length; i++) {
-      inputs[i].disabled = false;
-    }
 
-    updateDataContent(contact);
+    updateDataContent(socket, contact);
   }
   return button;
 }
 
-function updateDataContent(contact) {
+function _createInputField(kind, value, name, type, cb) {
+  var div = document.createElement('div');
+  div.className = 'mui-textfield';
+
+  var input = document.createElement('input');
+  input.type = type;
+  input.value = value;
+  input.oninput = cb;
+  input.className = kind;
+  div.appendChild(input);
+
+  var label = document.createElement('label');
+  label.textContent = name;
+  div.appendChild(label);
+
+  return div;
+}
+
+function updateDataContent(socket, contact) {
   console.log(contact);
 
-  var data = getDataFromContact(contact);
+  var data = Contacts.getDataFromContact(socket, contact);
+  var shortName = Contacts.toShortName(data.name);
 
-  document.getElementById('inputName').value = data.name;
-  document.getElementById('inputOrganization').value = data.organization;
+  var inputs = document.getElementsByClassName('contactInput');
+  for(var i = 0; i < inputs.length; i++) {
+    var div = inputs[i];
+    while(div.lastChild) {
+      div.removeChild(div.lastChild);
+    }
+  }
+
+  document.getElementById('contactName').appendChild(_createInputField(DATAKINDS.NAME, shortName, 'Name (Prefix, First name, Middle name, Last name, Suffix)', 'text', onContactInput));
+  document.getElementById('contactCompany').appendChild(_createInputField(DATAKINDS.ORGANIZATION + ' company', data.organization.company, 'Company', 'text', onContactInput));
+  document.getElementById('contactNickname').appendChild(_createInputField(DATAKINDS.NICKNAME, data.nickname.name, 'Nickname', 'text', onContactInput));
+  document.getElementById('contactCompanyTitle').appendChild(_createInputField(DATAKINDS.ORGANIZATION + ' title', data.organization.title, 'Company: Title', 'text', onContactInput));
+  document.getElementById('contactSIP').appendChild(_createInputField(DATAKINDS.SIP_ADDRESS, data.sip.address, 'SIP', 'text', onContactInput));
+
+  for(var i = 0; i <= data.phone.length; i++) {
+    document.getElementById('contactPhone').appendChild(_createInputField(DATAKINDS.PHONE, (i < data.phone.length ? data.phone[i].number : ''), 'Phone ' + (i+1), 'tel', onContactInput));
+  };
+
+  for(var i = 0; i <= data.email.length; i++) {
+    document.getElementById('contactEmail').appendChild(_createInputField(DATAKINDS.EMAIL, (i < data.email.length ? data.email[i].address : ''), 'Email ' + (i+1), 'email', onContactInput));
+  };
+
+  for(var i = 0; i <= data.im.length; i++) {
+    document.getElementById('contactIM').appendChild(_createInputField(DATAKINDS.IM, (i < data.im.length ? data.im[i].data : ''), 'Instant Messaging ' + (i+1), 'text', onContactInput));
+  };
+
+  document.getElementById('saveButton').style.display = 'none';
 }
 
 function onContactInput() {
@@ -134,44 +173,28 @@ function onContactInput() {
     return;
 
   var input = getWholeInput();
-  var data = getDataFromContact(clickedButton.contact);
+  var data = Contacts.getDataFromContact(clickedButton.contact);
+  var shortName = Contacts.toShortName(data.name);
 
-  var showSaveButton = ((input.name != data.name) || (input.organization != data.organization))
+  var showSaveButton = ((input.name != shortName) || (input.organization != data.organization))
 
   document.getElementById('saveButton').style.display = (showSaveButton ? 'block' : 'none');
 }
 
-function getDataFromContact(contact) {
-  var rawContactProvidingName = contact.rawContacts[contact.name_raw_contact_id];
-  var nameRow = rawContactProvidingName.data[Object.keys(rawContactProvidingName.data).filter((id) => rawContactProvidingName.data[id].kind == DATAKINDS.NAME)[0]];
-  var name = ((nameRow.fields.prefix ? nameRow.fields.prefix + ' ' : '') + (nameRow.fields.given_name ? nameRow.fields.given_name + ' ' : '') + (nameRow.fields.middle_name ? nameRow.fields.middle_name + ' ' : '') + (nameRow.fields.family_name ? nameRow.fields.family_name + ' ' : '') + (nameRow.fields.suffix ? nameRow.fields.suffix + ' ' : '')).trim();
-
-  var allDataSets = {};
-  Object.keys(contact.rawContacts).forEach((rawID) => {
-    Object.keys(contact.rawContacts[rawID].data).forEach((dataID) => {
-      allDataSets[dataID] = contact.rawContacts[rawID].data[dataID];
-    });
-  });
-
-  var organizationEntries = Object.keys(allDataSets).filter((id) => allDataSets[id].kind == DATAKINDS.ORGANIZATION)
-  var organization = (organizationEntries.length > 0 ? allDataSets[organizationEntries[0]].fields.company : '');
-
-  return {name: name, organization};
-}
-
 function getWholeInput() {
   // Fetch and return input
-  var name = document.getElementById('inputName').value;
   var organization = document.getElementById('inputOrganization').value;
+
+  var shortName = document.getElementById('inputName').value;
+  var name = Contacts.fromShortName(shortName);
+  name.display_name = Contacts.toDisplayName(n, organization);
 
   return {name, organization};
 }
 
-function getCurrentContactData() {
-  return (clickedButton ? getDataFromContact(clickedButton.contact) : null);
-}
+function updateContacts(socket, search) {
+  var contacts = socket.data.contacts;
 
-function updateContacts(contacts, search) {
   var contactList = document.getElementById('contactList');
   while(contactList.lastChild) {
     contactList.removeChild(contactList.lastChild);
@@ -188,7 +211,7 @@ function updateContacts(contacts, search) {
   if(list.length > 0) {
     list.sort((a,b) => contacts[a].sort_key.localeCompare(contacts[b].sort_key)).forEach((contactID) => {
       var contact = contacts[contactID];
-      var button = _createContactButton(contact);
+      var button = _createContactButton(socket, contact);
 
       if(clickedButton && clickedButton.contact._id == contactID) {
         button.className += ' selected';
@@ -206,7 +229,6 @@ function updateContacts(contacts, search) {
 
     contactList.appendChild(button);
   }
-  //console.log(contacts);
 }
 
 // Update the UI to reflect the currently discovered devices
@@ -283,5 +305,5 @@ function updateDiscoveredDevices(discoveredDevices) {
   }
 }
 
-module.exports = {animateTo, getCurrentContactData, getWholeInput, onContactInput, showConnect, setConnectingText, updateContacts, updateDataContent, updateDiscoveredDevices}
+module.exports = {animateTo, getWholeInput, onContactInput, showConnect, setConnectingText, updateContacts, updateDataContent, updateDiscoveredDevices}
 

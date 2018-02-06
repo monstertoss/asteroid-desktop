@@ -34,7 +34,7 @@ function onSearchInput(event) {
 
   var searchValue = document.getElementById('contentSearch').value;
 
-  UI.updateContacts(socket.data.contacts, searchValue);
+  UI.updateContacts(socket, searchValue);
 }
 
 /**** Automagic device discovery ****/

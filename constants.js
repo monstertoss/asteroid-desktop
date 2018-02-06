@@ -39,21 +39,21 @@ const _CHWO = {
 
 const DATAKINDS = {
   THIRDPARTY: -1,
-  EMAIL: 0,
-  EVENT: 1,
-  GROUP_MEMBERSHIP: 2,
-  IDENTITY: 3,
-  IM: 4,
-  NICKNAME: 5,
-  NOTE: 6,
-  ORGANIZATION: 7,
-  PHONE: 8,
-  PHOTO: 9,
-  RELATION: 10,
-  SIP_ADDRESS: 11,
-  NAME: 12,
-  ADDRESS: 13,
-  WEBSITE: 14
+  EMAIL: 'vnd.android.cursor.item/email_v2',
+  EVENT: 'vnd.android.cursor.item/contact_event',
+  GROUP_MEMBERSHIP: 'vnd.android.cursor.item/group_membership',
+  IDENTITY: 'vnd.android.cursor.item/identity',
+  IM: 'vnd.android.cursor.item/im',
+  NICKNAME: 'vnd.android.cursor.item/nickname',
+  NOTE: 'vnd.android.cursor.item/note',
+  ORGANIZATION: 'vnd.android.cursor.item/organization',
+  PHONE: 'vnd.android.cursor.item/phone_v2',
+  PHOTO: 'vnd.android.cursor.item/photo',
+  RELATION: 'vnd.android.cursor.item/relation',
+  SIP_ADDRESS: 'vnd.android.cursor.item/sip_address',
+  NAME: 'vnd.android.cursor.item/name',
+  ADDRESS: 'vnd.android.cursor.item/postal-address_v2',
+  WEBSITE: 'vnd.android.cursor.item/website'
 }
 
 // MIMETYPE => fields
