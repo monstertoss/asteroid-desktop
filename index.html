@@ -56,21 +56,33 @@
         </div>
         <div class="mui-col-md-8">
           <div class="mui-panel" id="dataContent">
-            <h3 class="mui--text-center">Contact Details<button id="disconnectButton" class="mui-btn mui-btn--primary mui--pull-right" onclick="socket.close()">Disconnect</button></h3>
+            <h3 class="mui--text-center">Contact Details<button id="disconnectButton" class="mui-btn mui-btn--raised mui-btn--primary mui--pull-right" onclick="socket.close()">Disconnect</button></h3>
             <hr>
             <div class="mui-row">
               <div class="mui-col-md-6 contactInput" id="contactName"></div>
               <div class="mui-col-md-6 contactInput" id="contactCompany"></div>
+            </div>
+            <div class="mui-row">
               <div class="mui-col-md-6 contactInput" id="contactNickname"></div>
               <div class="mui-col-md-6 contactInput" id="contactCompanyTitle"></div>
+            </div>
+            <div class="mui-row">
               <div class="mui-col-md-6 contactInput" id="contactPhone"></div>
               <div class="mui-col-md-6 contactInput" id="contactEmail"></div>
+            </div>
+            <div class="mui-row">
               <div class="mui-col-md-6 contactInput" id="contactSIP"></div>
               <div class="mui-col-md-6 contactInput" id="contactIM"></div>
+            </div>
+            <div class="mui-row">
               <div class="mui-col-md-6 contactInput" id="contactAddress"></div>
               <div class="mui-col-md-6 contactInput" id="contactWebsite"></div>
+            </div>
+            <div class="mui-row">
               <div class="mui-col-md-6 contactInput" id="contactEvent"></div>
               <div class="mui-col-md-6 contactInput" id="contactRelation"></div>
+            </div>
+            <div class="mui-row">
               <div class="mui-col-md-12 contactInput" id="contactNote"></div>
             </div>
             <button id="saveButton" style="display:none" class="mui-btn mui-btn--raised mui-btn--primary mui--pull-right" onclick="Contacts.saveContact()">Save</button>

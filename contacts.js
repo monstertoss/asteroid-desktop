@@ -190,4 +190,4 @@ function toDisplayName(name, organization) {
   return (toShortName(name) + (organization ? ' ' + organization : '')).trim()
 }
 
-module.exports = {fromShortName, getDataFromContact, handleContacts, saveContact, toShortName};
+module.exports = {fromShortName, getDataFromContact, handleContacts, saveContact, toDisplayName, toShortName};

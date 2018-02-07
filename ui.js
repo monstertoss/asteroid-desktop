@@ -12,6 +12,68 @@ var targets = {};
   }
 });
 
+// Our own replacement of the unsupported window.prompt();
+function prompt(question, cb) {
+  var _calledCB = false;
+
+  var container = document.createElement('div');
+  container.className = 'mui-container-fluid';
+  container.style.maxWidth = '400px';
+  container.style.marginTop = '150px';
+
+  var panel = document.createElement('div');
+  panel.className = 'mui-panel';
+
+  var form = document.createElement('form');
+  form.className = 'mui-form';
+  form.onsubmit = (e) => {
+    if(!_calledCB)
+      cb((input.value ? input.value : null));    
+
+    _calledCB = true;
+    mui.overlay('off');
+    e.preventDefault();
+  };
+
+  var legend = document.createElement('legend');
+  legend.textContent = question;
+
+  var inputDiv = document.createElement('div');
+  inputDiv.className = 'mui-textfield';
+
+  var input = document.createElement('input');
+  input.type = 'text';
+
+  var buttonsContainer = document.createElement('div');
+  buttonsContainer.className = 'mui--pull-right';
+
+  var cancelButton = document.createElement('button');
+  cancelButton.className = 'mui-btn mui-btn--raised mui-btn--danger';
+  cancelButton.textContent = 'Cancel';
+  cancelButton.onclick = (e) => mui.overlay('off');
+
+  var submitButton = document.createElement('button');
+  submitButton.type = 'submit';
+  submitButton.className = 'mui-btn mui-btn--raised mui-btn--primary';
+  submitButton.textContent = 'OK';
+
+  buttonsContainer.appendChild(cancelButton);
+  buttonsContainer.appendChild(submitButton);
+  inputDiv.appendChild(input);
+  form.appendChild(legend);
+  form.appendChild(inputDiv);
+  form.appendChild(buttonsContainer);
+  panel.appendChild(form);
+  container.appendChild(panel);
+
+  mui.overlay('on', {onclose: () => {
+    if(!_calledCB)
+      cb(null);
+
+    _calledCB = true;
+  }}, container);
+}
+
 // Hide everything except for the wanted part
 function animateTo(id, callback) {
   // Make callback optional
@@ -115,21 +177,120 @@ function _createContactButton(socket, contact) {
   return button;
 }
 
-function _createInputField(kind, value, name, type, cb) {
+function _createInputField(socket, kind, value, name, type, cb, options, selected, _customOption) {
   var div = document.createElement('div');
   div.className = 'mui-textfield';
 
-  var input = document.createElement('input');
-  input.type = type;
+  var oneline = false;
+  if(type == 'textarea-oneline') {
+    type = 'textarea';
+    oneline = true;
+  }
+
+  var input = document.createElement((type == 'textarea' ? 'textarea' : 'input'));
   input.value = value;
-  input.oninput = cb;
   input.className = kind;
   div.appendChild(input);
 
+  if(type == 'textarea') {
+    input.oninput = (e) => {
+      input.style.height = '';
+      input.style.height = input.scrollHeight + 'px';
+      cb(socket);
+    };
+    if(oneline) {
+      input.rows = 1;
+      input.style.minHeight = '32px';
+    }
+  } else {
+    input.type = type;
+    input.oninput = (e) => cb(socket);
+  }
+
   var label = document.createElement('label');
   label.textContent = name;
-  div.appendChild(label);
 
+  if(options) {
+    var selectDiv = document.createElement('div');
+    selectDiv.className = 'mui-select';
+
+    var customValue;
+    var previousValue = selected;
+
+    var tempOption;
+    var select = document.createElement('select');
+    Object.keys(options).forEach((option) => {
+      var element = document.createElement('option');
+      element.textContent = (options[option] ? options[option] : 'Custom...');
+      if(!options[option])
+        customValue = option;
+      element.value = option;
+      select.appendChild(element);
+    });
+    if(_customOption && selected == customValue) {
+      tempOption = document.createElement('option');
+      tempOption.textContent = _customOption;
+      tempOption.value = 'CUSTOM';
+      select.insertBefore(tempOption, select.firstChild);
+      input.customValue = _customOption;
+    }
+    select.onchange = (e) => {
+      if(tempOption)
+        tempOption.remove();
+
+      if(select.value == customValue) {
+        prompt('Enter a custom value', (value) => {
+          if(value == null && Object.keys(options).indexOf(previousValue) > -1) {
+            select.value = previousValue;
+            input.selectedValue = previousValue;
+            input.customValue = null;
+          } else {
+            if(value == null)
+              value = previousValue;
+
+            input.selectedValue = select.value;
+            input.customValue = value;
+
+            tempOption = document.createElement('option');
+            tempOption.textContent = value;
+            tempOption.value = 'CUSTOM'; // assuming that is not taken by one of the options
+            select.insertBefore(tempOption, select.firstChild);
+            select.value = 'CUSTOM';
+
+            if(value != null) {
+              cb(socket);
+              previousValue = value;
+            }
+          }
+        });
+      } else {
+        input.selectedValue = select.value;
+        previousValue = select.value;
+        cb(socket);
+      }
+    };
+    select.value = (_customOption && selected == customValue ? 'CUSTOM' : selected);
+    input.selectedValue = selected;
+
+    selectDiv.appendChild(select);
+    selectDiv.appendChild(label);
+
+    var row = document.createElement('div');
+    row.className = 'mui-row';
+
+    var selectCol = document.createElement('div');
+    selectCol.className = 'mui-col-md-4';
+    selectCol.appendChild(selectDiv);
+    row.appendChild(selectCol);
+
+    var inputCol = document.createElement('div');
+    inputCol.className = 'mui-col-md-8';
+    inputCol.appendChild(div);
+    row.appendChild(inputCol);
+    return row;
+  }
+
+  div.appendChild(label);
   return div;
 }
 
@@ -147,34 +308,47 @@ function updateDataContent(socket, contact) {
     }
   }
 
-  document.getElementById('contactName').appendChild(_createInputField(DATAKINDS.NAME, shortName, 'Name (Prefix, First name, Middle name, Last name, Suffix)', 'text', onContactInput));
-  document.getElementById('contactCompany').appendChild(_createInputField(DATAKINDS.ORGANIZATION + ' company', data.organization.company, 'Company', 'text', onContactInput));
-  document.getElementById('contactNickname').appendChild(_createInputField(DATAKINDS.NICKNAME, data.nickname.name, 'Nickname', 'text', onContactInput));
-  document.getElementById('contactCompanyTitle').appendChild(_createInputField(DATAKINDS.ORGANIZATION + ' title', data.organization.title, 'Company: Title', 'text', onContactInput));
-  document.getElementById('contactSIP').appendChild(_createInputField(DATAKINDS.SIP_ADDRESS, data.sip.address, 'SIP', 'text', onContactInput));
+  document.getElementById('contactName').appendChild(_createInputField(socket, DATAKINDS.NAME, shortName, 'Name (Prefix, First name, Middle name, Last name, Suffix)', 'text', onContactInput));
+  document.getElementById('contactCompany').appendChild(_createInputField(socket, DATAKINDS.ORGANIZATION + ' company', data.organization.company, 'Company', 'text', onContactInput));
+  document.getElementById('contactNickname').appendChild(_createInputField(socket, DATAKINDS.NICKNAME, data.nickname.name, 'Nickname', 'text', onContactInput));
+  document.getElementById('contactCompanyTitle').appendChild(_createInputField(socket, DATAKINDS.ORGANIZATION + ' title', data.organization.title, 'Company: Title', 'text', onContactInput));
+  document.getElementById('contactSIP').appendChild(_createInputField(socket, DATAKINDS.SIP_ADDRESS, data.sip.address, 'SIP', 'text', onContactInput));
 
-  for(var i = 0; i <= data.phone.length; i++) {
-    document.getElementById('contactPhone').appendChild(_createInputField(DATAKINDS.PHONE, (i < data.phone.length ? data.phone[i].number : ''), 'Phone ' + (i+1), 'tel', onContactInput));
-  };
+  for(var i = 0; i <= data.phone.length; i++)
+    document.getElementById('contactPhone').appendChild(_createInputField(socket, DATAKINDS.PHONE, (i < data.phone.length ? data.phone[i].number : ''), 'Phone ' + (i+1), 'tel', onContactInput, DATA[DATAKINDS.PHONE].types, (i < data.phone.length ? data.phone[i].type : '2'), (i < data.phone.length ? data.phone[i].label : null)));
 
-  for(var i = 0; i <= data.email.length; i++) {
-    document.getElementById('contactEmail').appendChild(_createInputField(DATAKINDS.EMAIL, (i < data.email.length ? data.email[i].address : ''), 'Email ' + (i+1), 'email', onContactInput));
-  };
+  for(var i = 0; i <= data.email.length; i++)
+    document.getElementById('contactEmail').appendChild(_createInputField(socket, DATAKINDS.EMAIL, (i < data.email.length ? data.email[i].address : ''), 'Email ' + (i+1), 'email', onContactInput, DATA[DATAKINDS.EMAIL].types, (i < data.email.length ? data.email[i].type : '1'), (i < data.email.length ? data.email[i].label : null)));
 
-  for(var i = 0; i <= data.im.length; i++) {
-    document.getElementById('contactIM').appendChild(_createInputField(DATAKINDS.IM, (i < data.im.length ? data.im[i].data : ''), 'Instant Messaging ' + (i+1), 'text', onContactInput));
-  };
+  for(var i = 0; i <= data.im.length; i++)
+    document.getElementById('contactIM').appendChild(_createInputField(socket, DATAKINDS.IM, (i < data.im.length ? data.im[i].data : ''), 'IM ' + (i+1), 'text', onContactInput, DATA[DATAKINDS.IM].protocols, (i < data.im.length ? data.im[i].protocol : '0'), (i < data.im.length ? data.im[i].custom_protocol : null)));
+
+  for(var i = 0; i <= data.address.length; i++)
+    document.getElementById('contactAddress').appendChild(_createInputField(socket, DATAKINDS.IM, (i < data.address.length ? data.address[i].address : ''), 'Address ' + (i+1), 'textarea-oneline', onContactInput, DATA[DATAKINDS.ADDRESS].types, (i < data.address.length ? data.address[i].type : '1'), (i < data.address.length ? data.address[i].label : null)));
+
+  for(var i = 0; i <= data.website.length; i++)
+    document.getElementById('contactWebsite').appendChild(_createInputField(socket, DATAKINDS.WEBSITE, (i < data.website.length ? data.website[i].url : ''), 'Website ' + (i+1), 'text', onContactInput));
+
+  for(var i = 0; i <= data.event.length; i++)
+    document.getElementById('contactEvent').appendChild(_createInputField(socket, DATAKINDS.EVENT, (i < data.event.length ? data.event[i].date : ''), 'Event ' + (i+1), 'text', onContactInput, DATA[DATAKINDS.EVENT].types, (i < data.event.length ? data.event[i].type : '3'), (i < data.event.length ? data.event[i].label : null)));
+
+  for(var i = 0; i <= data.relation.length; i++)
+    document.getElementById('contactRelation').appendChild(_createInputField(socket, DATAKINDS.RELATION, (i < data.relation.length ? data.relation[i].name : ''), 'Relation ' + (i+1), 'text', onContactInput, DATA[DATAKINDS.RELATION].types, (i < data.relation.length ? data.relation[i].type : '1'), (i < data.relation.length ? data.relation[i].label : null)));
+
+  document.getElementById('contactNote').appendChild(_createInputField(socket, DATAKINDS.NOTE, data.note.note, 'Notes', 'textarea', onContactInput));
 
   document.getElementById('saveButton').style.display = 'none';
 }
 
-function onContactInput() {
+function onContactInput(socket) {
   if(!clickedButton)
     return;
 
   var input = getWholeInput();
-  var data = Contacts.getDataFromContact(clickedButton.contact);
+  var data = Contacts.getDataFromContact(socket, clickedButton.contact);
   var shortName = Contacts.toShortName(data.name);
+
+  console.log(input, data);
 
   var showSaveButton = ((input.name != shortName) || (input.organization != data.organization))
 
@@ -183,13 +357,23 @@ function onContactInput() {
 
 function getWholeInput() {
   // Fetch and return input
-  var organization = document.getElementById('inputOrganization').value;
+  var organization = {company: document.getElementsByClassName(DATAKINDS.ORGANIZATION + ' company')[0].value, title: document.getElementsByClassName(DATAKINDS.ORGANIZATION + ' title')[0].value};
+  organization = {company: (organization.company ? organization.company : null), title: (organization.title ? organization.title : null)};
 
-  var shortName = document.getElementById('inputName').value;
+  var shortName = document.getElementsByClassName(DATAKINDS.NAME)[0].value;
   var name = Contacts.fromShortName(shortName);
-  name.display_name = Contacts.toDisplayName(n, organization);
+  name.display_name = Contacts.toDisplayName(name, organization.company);
 
-  return {name, organization};
+  var nickname = {name: document.getElementsByClassName(DATAKINDS.NICKNAME)[0].value};
+  var sip = {address: document.getElementsByClassName(DATAKINDS.SIP_ADDRESS)[0].value};
+
+  var phone = [];
+  var phones = document.getElementsByClassName(DATAKINDS.PHONE);
+  for(var i = 0; i < phones.length; i++)
+    if(phones[i].value)
+      phone.push({number: phones[i].value, type: phones[i].selectedValue});
+
+  return {name, organization, nickname, sip, phone};
 }
 
 function updateContacts(socket, search) {
